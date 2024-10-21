@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 
 saves/
+frames/
+video.mp4
+music.mp3
 
 # C extensions
 *.so
