@@ -6,6 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+saves/
+frames/
+video.mp4
+music.mp3
+
 # Distribution / packaging
 .Python
 build/

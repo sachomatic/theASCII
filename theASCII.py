@@ -8,10 +8,20 @@ from colorama import Fore,Back,Style
 import logging
 import multiprocessing
 from multiprocessing import Pool, Manager, Value
-from Custom_drv import Press,KEYPAD_MINUS,KEYPAD_PLUS
 
 def euclidean_distance(c1, c2):
     return math.sqrt(sum((a - b) ** 2 for a, b in zip(c1, c2)))
+
+def progress(count,max:int,div:int):
+    import math
+    pr = count * div / max
+    pr = math.floor(pr)
+    end = '\r'
+    full = pr*"#" 
+    empty = (div-pr)*"-"
+    print(f"[{full}{empty}]" + f"{count}/{max}",end=end)
+    if count == max:
+        print("")
 
 def opposite(q):
     col = {
@@ -227,16 +237,9 @@ def setting_quality():
     while True:
         x,y = get_terminal_size()
         print(f"Actual setting : {x}x{y}")
-        ch = input("Increase or decrease quality (+/-)(enter to exit) : ")
-        if ch == "+":
-            set_font_size(50)
-        elif ch == "-":
-            with keyboard.pressed(Key.ctrl):
-                Press(KEYPAD_PLUS)
-        elif ch == "":
+        ch = input("Increase or decrease quality (enter to exit) : ")
+        if ch == "":
             break
-        else:
-            print("")
 
 def delete_all_files(directory):
     if not os.path.exists(directory):
@@ -268,23 +271,6 @@ def check_if_already_extracted_footage():
             return (False,None,None)
     except:
         return (False,None,None)
-    
-def play(play_event:threading.Event,ready_event:threading.Event):
-        import time
-        import pygame
-
-        pygame.mixer.init()
-        movie_player = pygame.mixer
-
-        music_path = f"Converter/music.mp3"
-        if os.path.isfile(music_path):
-            movie_player.music.load(music_path)
-            ready_event.set()
-            while not play_event.is_set:
-                pass
-            movie_player.music.play()
-        else:
-            print("Music not found")
 
 def convert_mp4_to_mp3(input_file, output_file=None):
     from moviepy.editor import VideoFileClip
@@ -302,14 +288,14 @@ def convert_mp4_to_mp3(input_file, output_file=None):
     audio_clip.close()
     video_clip.close()
 
-def single_convert(dimension,lock,path_waiting_list,add_wt_dict:multiprocessing.Queue):
+def single_convert(dimension,lock,path_waiting_list,add_wt_dict:multiprocessing.Queue,maximum):
     while True:
         with lock:
             if len(path_waiting_list) == 0:
                 break
             filename = path_waiting_list[0]
             path_waiting_list.pop(0)
-        print(f" {len(path_waiting_list)} frames left        ",end="\r")
+        progress((maximum-len(path_waiting_list)),maximum,30)
         ascii = image_to_ascii(f"Converter/frames/{filename}",dimension)
         new = [filename,ascii]
         add_wt_dict.put(new)
@@ -339,8 +325,7 @@ def convert():
             path_waiting_list2 =  manager.list(path_waiting_list)
             queue = manager.Queue(frame_count)
             lock = manager.Lock()
-            args = [(dimension,lock,path_waiting_list2,queue) for _ in path_waiting_list2]
-            print(f" {len(path_waiting_list)} frames left",end="\r")
+            args = [(dimension,lock,path_waiting_list2,queue,frame_count) for _ in path_waiting_list2]
             with Pool(processes=multiprocessing.cpu_count()) as pool:
                 pool.starmap(single_convert, args)
 
@@ -376,26 +361,36 @@ def view(ASCII_movie:dict,frames_interval:int):
     import time
     from blessed import Terminal
     t = Terminal()
-    play_event = threading.Event()
-    ready_event = threading.Event()
+    from sys import stdout
+    from rich.console import Console
+    clear = Console()
 
-    Music_thread = threading.Thread(target=play,args=(play_event,ready_event))
-    a = 0
+    ready_event = threading.Event()
+    music_path = "Converter/music.mp3"
+    player = store.Player(music_path,ready_event)
+
+    Music_thread = threading.Thread(target=player.play)
     
     start_time = time.perf_counter()
     Music_thread.start()
     print("Waiting for music player...")
+    skip_frame = False
     #print(ASCII_movie.items())
     while not ready_event.is_set():
         pass
     with t.location():
-        play_event.set()
+        clear.clear()
+        while not player.state:
+            pass
         for index, element in enumerate(ASCII_movie.items()):
             # Calculate the expected time for the current frame
             expected_time = start_time + index * frames_interval
             
             # Clear the console and print the frame
-            print(t.move_xy(0,0)+element[1])
+            if not skip_frame:
+                stdout.write(t.move_xy(0,0)+element[1])
+            else:
+                skip_frame = False
 
             # Calculate how much time to sleep
             current_time = time.perf_counter()
@@ -404,6 +399,10 @@ def view(ASCII_movie:dict,frames_interval:int):
             # Only sleep if there is time left
             if time_to_sleep > 0:
                 time.sleep(time_to_sleep)
+            else:
+                skip_frame = True
+
+                    
 
     Music_thread.join()
     term.clear()

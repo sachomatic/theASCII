@@ -5,18 +5,24 @@ import gzip
 frames_dict = {}
 frames_interval = 0
 
-conn = sqlite3.connect("Converter/saves.db")
-cursor = conn.cursor()
+class Player():
+    def __init__(self,path,ready_event):
+        import pygame
+        
+        self.state = False
 
-cursor.execute("""
-                CREATE TABLE IF NOT EXISTS saves (
-                    id INTEGER PRIMARY KEY,
-                    name TEXT,
-                    data TEXT,
-                    interval INTEGER,
-                    music BLOB
-                )
-                """)
+        self.mixer = pygame.mixer
+        self.mixer.init()
+        self.path = path
+
+        self.ready_event = ready_event
+        self.mixer.music.load(self.path)
+
+        self.ready_event.set()
+
+    def play(self):
+        self.state = True
+        self.mixer.music.play()
 
 def save_movie(data: dict, interval, save_to_json=True):
     import os
@@ -159,27 +165,3 @@ def extract_movie(json_file_path):
         'interval': interval,
         'music': music_file_path
     }
-
-def delete_all():
-    cursor.execute("DROP TABLE saves")
-
-def change_name(new_name,old_name):
-    cursor.execute("UPDATE saves SET name=? WHERE NAME=?",(new_name,old_name))
-    conn.commit()
-
-"""class bitch():
-            def __init__(self) -> None:
-                self.btch = []
-            
-            def put(self,element):
-                self.btch.append(element)
-
-            def prnt(self):
-                for i in self.btch:
-                    print(i)
-
-        print(image_to_ascii("Converter/frames/frame_0000.png",get_terminal_size()))
-        h = bitch()
-        l = threading.Lock()
-        lst = ["frame_0000.png","frame_0001.png"]
-        single_convert(get_terminal_size(),l,lst,h)"""
