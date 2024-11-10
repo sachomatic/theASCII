@@ -23,49 +23,9 @@ def progress(count,max:int,div:int):
     if count == max:
         print("")
 
-def opposite(q):
-    col = {
-        'BLACK': 'WHITE',
-        'BLUE': 'BLACK',
-        'CYAN': 'BLACK',
-        'GREEN': 'BLACK',
-        'MAGENTA': 'BLACK',
-        'LIGHTRED': 'BLACK',
-        'WHITE': 'BLACK',
-        'YELLOW': 'BLACK',
-        'GRAY': 'BLACK',
-        'LIGHTBLUE': 'BLACK',
-        'LIGHTGREEN': 'BLACK',
-        'PURPLE': 'BLACK',
-        'RED': 'BLACK'
-        }
-
-    try:
-        r = col[q]
-
-        match r:
-            case "WHITE":
-                result = Fore.WHITE
-            case "YELLOW":
-                result = Fore.YELLOW
-            case "RED":
-                result = Fore.RED
-            case "MAGENTA":
-                result = Fore.MAGENTA
-            case "GREEN":
-                result = Fore.GREEN
-            case "CYAN":
-                result = Fore.CYAN
-            case "BLACK":
-                result = Fore.BLACK
-            case "BLUE":
-                result = Fore.BLUE
-            case "GRAY":
-                result = Fore.LIGHTBLACK_EX
-    except:
-        result = False
-    finally:
-        return result
+def opposite_color(rgb):
+    r, g, b = rgb
+    return (255 - r, 255 - g, 255 - b)
 
 def closest_color(rgb):
     # Initialize variables to store the closest color and minimum distance
@@ -148,13 +108,14 @@ def extract_frames_with_progress(video_path, output_folder):
 
 def get_terminal_size():
     import shutil
-
     size = shutil.get_terminal_size((80, 20))  # Fallback size if unable to get terminal size
-    return size.columns, size.lines
+    return size.columns-5, size.lines
 
 def image_to_ascii(image_path, dimension):
     from PIL import Image
     from colorama import Fore, Style
+    from blessed import Terminal
+    t = Terminal()
 
     # ASCII characters used to build the output text
     ASCII_CHARS = "@%#*+=-:. "
@@ -184,37 +145,10 @@ def image_to_ascii(image_path, dimension):
     pixels = image.getdata()
     ascii_img_parts = []
     for index,pixel in enumerate(pixels):
-        color = closest_color(pixel)
-        fn_col = opposite(color)
-        match color:
-            case "BLACK":
-                bg_col = Back.BLACK
-            case "BLUE":
-                bg_col = Back.BLUE
-            case "CYAN":
-                bg_col = Back.CYAN
-            case "GREEN":
-                bg_col = Back.GREEN
-            case 'MAGENTA':
-                bg_col = Back.MAGENTA
-            case "RED":
-                bg_col = Back.RED
-            case "WHITE":
-                bg_col = Back.WHITE
-            case "YELLOW":
-                bg_col = Back.YELLOW
-            case "LIGHTRED":
-                bg_col = Back.LIGHTRED_EX
-            case "LIGHTBLUE":
-                bg_col = Back.LIGHTBLUE_EX
-            case "LIGHTGREEN":
-                bg_col = Back.LIGHTGREEN_EX
-            case "PURPLE":
-                bg_col = Back.LIGHTMAGENTA_EX
-            case "GRAY":
-                bg_col = Back.LIGHTBLACK_EX
-            case _:
-                print(color)
+        opposite = opposite_color(pixel)
+        fn_col = t.color_rgb(opposite[0],opposite[1],opposite[2])
+        bg_col = t.on_color_rgb(pixel[0],pixel[1],pixel[2])
+
         col = fn_col + bg_col
         ascii_char = ASCII_CHARS[min(len(ASCII_CHARS) - 1, g_pixels[index] // (256 // len(ASCII_CHARS)))]
         ascii_img_parts.append(col + ascii_char + Style.RESET_ALL)
@@ -231,15 +165,24 @@ def set_font_size(size):
     print(f"\033[{size}m", end='')
 
 def setting_quality():
-    from pynput.keyboard import Controller, Key
+    from pynput import keyboard as k
     import time
-    keyboard = Controller()
+    keyboard = k.Controller()
     while True:
         x,y = get_terminal_size()
         print(f"Actual setting : {x}x{y}")
-        ch = input("Increase or decrease quality (enter to exit) : ")
-        if ch == "":
+        ch = input("Increase or decrease quality (+/- , enter to exit) : ")
+        if ch == "-":
+            with keyboard.pressed(k.Key.ctrl):
+                keyboard.press("+")
+        elif ch == "+":
+            with keyboard.pressed(k.Key.ctrl):
+                minus = "\u2013"
+                keyboard.press(minus)
+        elif ch == "":
             break
+        else:
+            print("unknown command")
 
 def delete_all_files(directory):
     if not os.path.exists(directory):
@@ -301,7 +244,7 @@ def single_convert(dimension,lock,path_waiting_list,add_wt_dict:multiprocessing.
         add_wt_dict.put(new)
 
 def convert():
-    import time
+    import tqdm
 
     global frames_interval
     global path_waiting_list
@@ -346,13 +289,11 @@ def convert():
             if choice.upper() == "Y":
                 store.save_movie(store.frames_dict,frames_interval)
         except:
-            print("Unable to store film")
+            print("Unable to store film:")
+            logging.exception("")
         return sorted_dict
     except Exception as error:
         logging.exception("")
-
-def view_decompression(compressed_movie,frames_interval):
-    buffer = None
 
 def view(ASCII_movie:dict,frames_interval:int):
     import threading
