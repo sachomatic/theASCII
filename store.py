@@ -181,7 +181,8 @@ def choose_compression_level(default_level:int=3):
                 empty2 = (24-level)*"-"
                 print("Compression level (enter to save): "+ui.format(empty1,cursor,empty2)+f"{level}/24",end='\r')
                 if stop == True:
-                    input("",end="")
+                    input("")
+                    print("\033[1A",end="")
                     return level
     except KeyboardInterrupt:
         listener.stop()
