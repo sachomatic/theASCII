@@ -2,9 +2,7 @@ import multiprocessing.queues
 import cv2,os
 from tqdm import tqdm
 import store
-import threading
 import math
-from colorama import Fore,Back,Style
 import logging
 import multiprocessing
 from multiprocessing import Pool, Manager, Value
@@ -148,9 +146,12 @@ def image_to_ascii(image_path, dimension):
         opposite = opposite_color(pixel)
         fn_col = t.color_rgb(opposite[0],opposite[1],opposite[2])
         bg_col = t.on_color_rgb(pixel[0],pixel[1],pixel[2])
-
-        col = fn_col + bg_col
-        ascii_char = ASCII_CHARS[min(len(ASCII_CHARS) - 1, g_pixels[index] // (256 // len(ASCII_CHARS)))]
+        if pixel == (0,0,0):
+            col = ""
+            ascii_char = " "
+        else:
+            col = fn_col + bg_col
+            ascii_char = ASCII_CHARS[min(len(ASCII_CHARS) - 1, g_pixels[index] // (256 // len(ASCII_CHARS)))]
         ascii_img_parts.append(col + ascii_char + Style.RESET_ALL)
     
     # Split string into multiple lines
@@ -198,7 +199,7 @@ def delete_all_files(directory):
             print(f"Failed to delete {file_path}. Reason: {e}")
 
 def check_if_already_extracted_footage():
-    video_path = "Converter/video.mp4"
+    video_path = store.get_video()
     video_capture = cv2.VideoCapture(video_path)
     frame_count = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
 
@@ -244,7 +245,7 @@ def single_convert(dimension,lock,path_waiting_list,add_wt_dict:multiprocessing.
         add_wt_dict.put(new)
 
 def convert():
-    import tqdm
+    import json
 
     global frames_interval
     global path_waiting_list
@@ -260,11 +261,12 @@ def convert():
         if al_extracted == False or choice.upper() == "N":
             delete_all_files("Converter/frames")
             print("Starting...")
-            frames_interval,frame_count = extract_frames_with_progress("Converter/video.mp4","Converter/frames")
+            frames_interval,frame_count = extract_frames_with_progress(store.get_video(),"Converter/frames")
         for filename in os.listdir("Converter/frames"):
             path_waiting_list.append(filename)
 
-        with Manager() as manager:
+
+        with Manager() as manager, open("Converter/temp/.~lock.temp.json#","w") as output_file:
             path_waiting_list2 =  manager.list(path_waiting_list)
             queue = manager.Queue(frame_count)
             lock = manager.Lock()
@@ -272,25 +274,46 @@ def convert():
             with Pool(processes=multiprocessing.cpu_count()) as pool:
                 pool.starmap(single_convert, args)
 
+            output_file.write("{\n")
+            first_entry = True
+
             while not queue.empty():
                 filename, ascii_art = queue.get()
                 store.frames_dict[filename] = ascii_art
+                if not first_entry:
+                    output_file.write(",\n")
+                json_entry = json.dumps({filename: ascii_art})
+                output_file.write(json_entry[1:-1])  # Strip the outer braces
+
+                first_entry = False
                 #store.frames_dict.append(queue.get())
+            output_file.write("\n}")
 
-        sorted_keys = sorted(store.frames_dict.keys(), key=lambda x: int(x.split('_')[1].replace(".png", "")))
-        sorted_dict = {key: store.frames_dict[key] for key in sorted_keys}
-        store.frames_dict = sorted_dict
-        #list_fls = [value[1] for value in store.frames_dict.values()]
+        with open("Converter/temp/.~lock.temp.json#", "r+") as output_file:
+            frames_dict = json.load(output_file)
+            sorted_keys = sorted(frames_dict.keys(), key=lambda x: int(x.split('_')[1].replace(".png", "")))
+            sorted_dict = {key: frames_dict[key] for key in sorted_keys}
 
-        convert_mp4_to_mp3("Converter/video.mp4", "Converter/music.mp3")
+            # Rewrite the file with the sorted dictionary
+            output_file.seek(0)
+            json.dump(sorted_dict, output_file, indent=4)
+            output_file.truncate()
+        convert_mp4_to_mp3(store.get_video(), "Converter/music.mp3")
         print("Done converting")
-        choice = input("Save movie for later? : Y/N")
+        with open("Converter/temp/.~lock.temp.json#", "r+") as input_file:
+            store.frames_dict = json.loads(input_file.read())
         try:
-            if choice.upper() == "Y":
-                store.save_movie(store.frames_dict,frames_interval)
+            store.save_movie(store.frames_dict,frames_interval)
         except:
             print("Unable to store film:")
             logging.exception("")
+        choice = input("Deleting movie? Y/N")
+        if choice.upper() == "Y":
+            if store.delete_video():
+                print("Movie deleted successfully")
+            else:
+                print("Unable to delete file")
+        open("Converter/temp/.~lock.temp.json#", "w").close()
         return sorted_dict
     except Exception as error:
         logging.exception("")
@@ -319,7 +342,7 @@ def view(ASCII_movie:dict,frames_interval:int):
     #print(ASCII_movie.items())
     while not ready_event.is_set():
         pass
-    with t.location():
+    with t.location() and t.hidden_cursor():
         clear.clear()
         while not player.state:
             pass
