@@ -109,9 +109,23 @@ def get_terminal_size():
     size = shutil.get_terminal_size((80, 20))  # Fallback size if unable to get terminal size
     return size.columns-5, size.lines
 
-def image_to_ascii(image_path, dimension):
+def extract_ansi_components(input_string):
+    import re
+    color_pattern = r'\033\[\d+m'  # Matches color header escape sequences
+    resetter_pattern = r'\033\[0m'  # Matches reset escape sequence
+    text_pattern = r'([^\\\033]+)'  # Matches the regular text/characters between codes
+
+    # Find all color headers, characters, and reset sequences
+    colors = re.findall(color_pattern, input_string)
+    resetters = re.findall(resetter_pattern, input_string)
+    text = re.findall(text_pattern, input_string)
+
+    return colors, text, resetters
+
+
+def image_to_ascii(image_path, last_image, dimension):
     from PIL import Image
-    from colorama import Fore, Style
+    from colorama import Style
     from blessed import Terminal
     t = Terminal()
 
@@ -142,19 +156,36 @@ def image_to_ascii(image_path, dimension):
     g_pixels = gray_image.getdata()
     pixels = image.getdata()
     ascii_img_parts = []
-    for index,pixel in enumerate(pixels):
+
+    # Extract components from the last image for comparison, if available
+    if last_image is not None:
+        last_colors, last_text, last_resetters = extract_ansi_components(last_image)
+
+    for index, pixel in enumerate(pixels):
         opposite = opposite_color(pixel)
-        fn_col = t.color_rgb(opposite[0],opposite[1],opposite[2])
-        bg_col = t.on_color_rgb(pixel[0],pixel[1],pixel[2])
-        if pixel == (0,0,0):
+        fn_col = t.color_rgb(opposite[0], opposite[1], opposite[2])
+        bg_col = t.on_color_rgb(pixel[0], pixel[1], pixel[2])
+        
+        if pixel == (0, 0, 0):  # If the pixel is black, make it a space
             col = ""
             ascii_char = " "
         else:
             col = fn_col + bg_col
             ascii_char = ASCII_CHARS[min(len(ASCII_CHARS) - 1, g_pixels[index] // (256 // len(ASCII_CHARS)))]
+
+        # Create the full character string with color and reset codes
+        char = col + ascii_char + Style.RESET_ALL
+        
+        # Compare with the last image to avoid repetition of identical characters
+        if last_image and index < len(last_text):
+            prev_char = last_colors[index] + last_text[index] + last_resetters[index]
+            if char == prev_char:
+                ascii_char = "\033[1C"  # Move to the next character (skip repetition)
+
+        # Append the final character to the list
         ascii_img_parts.append(col + ascii_char + Style.RESET_ALL)
-    
-    # Split string into multiple lines
+
+    # Split string into multiple lines for terminal display
     ascii_img = ""
     for i in range(0, len(ascii_img_parts), new_width):
         ascii_img += ''.join(ascii_img_parts[i:i + new_width]) + "\n"
@@ -233,6 +264,7 @@ def convert_mp4_to_mp3(input_file, output_file=None):
     video_clip.close()
 
 def single_convert(dimension,lock,path_waiting_list,add_wt_dict:multiprocessing.Queue,maximum):
+    ascii = None
     while True:
         with lock:
             if len(path_waiting_list) == 0:
@@ -240,7 +272,7 @@ def single_convert(dimension,lock,path_waiting_list,add_wt_dict:multiprocessing.
             filename = path_waiting_list[0]
             path_waiting_list.pop(0)
         progress((maximum-len(path_waiting_list)),maximum,30)
-        ascii = image_to_ascii(f"Converter/frames/{filename}",dimension)
+        ascii = image_to_ascii(f"Converter/frames/{filename}",ascii,dimension)
         new = [filename,ascii]
         add_wt_dict.put(new)
 
@@ -277,6 +309,7 @@ def convert():
             output_file.write("{\n")
             first_entry = True
 
+            print("Writing...")
             while not queue.empty():
                 filename, ascii_art = queue.get()
                 store.frames_dict[filename] = ascii_art
@@ -287,6 +320,7 @@ def convert():
 
                 first_entry = False
                 #store.frames_dict.append(queue.get())
+            print("")
             output_file.write("\n}")
 
         with open("Converter/temp/.~lock.temp.json#", "r+") as output_file:
@@ -307,13 +341,13 @@ def convert():
         except:
             print("Unable to store film:")
             logging.exception("")
-        choice = input("Deleting movie? Y/N")
+        choice = input("Delete movie? Y/N : ")
         if choice.upper() == "Y":
             if store.delete_video():
                 print("Movie deleted successfully")
             else:
                 print("Unable to delete file")
-        open("Converter/temp/.~lock.temp.json#", "w").close()
+        open(r"Converter\temp\.~lock.temp.json#", "w").close()
         return sorted_dict
     except Exception as error:
         logging.exception("")
@@ -375,17 +409,17 @@ def browse():
     import json
 
     lib = store.get_all()
+    files_dict = {}
     if lib == []:
         print("No movies saved")
         return
-    dict = {}
     for index,element in enumerate(lib):
         print(f"{index+1} : {element}")
-        dict[str(index+1)] = element
+        files_dict[str(index+1)] = element
     ch = input("View (number) : ")
     try:
-        dict[ch]
-        movie = store.extract_movie(dict[ch])
+        files_dict[ch]
+        movie = store.extract_movie(files_dict[ch])
         name = movie["name"]
         data = movie["data"]
         interval = movie["interval"]
@@ -404,21 +438,21 @@ if __name__ == "__main__":
         store.delete_all()
     elif inp == "CHANGE":
         lib = store.get_all()
-        dict = {}
+        files_dict = {}
         for index, element in enumerate(lib):
             print(f"{index + 1} : {element[1]}")
-            dict[str(index + 1)] = element
+            files_dict[str(index + 1)] = element
         inp2 = input("Change name of (number) :")
         try:
-            dict[inp2]
-            name = dict[inp2][1]
+            files_dict[inp2]
+            name = files_dict[inp2][1]
             new_name = input("New name : ")
             store.change_name(new_name, name)
         except:
             print("Invalid number")
     elif inp == "C":
-        dict = convert()
+        movie_dict = convert()
         input("Start")
-        view(dict, frames_interval)
+        view(movie_dict, frames_interval)
     else:
         browse()
