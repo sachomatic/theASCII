@@ -26,17 +26,33 @@ class Player():
         self.state = True
         self.mixer.music.play()
 
-def save_movie(data: dict, interval, save_to_json=True):
+def get_video():
+    import os
+
+    path_list = os.listdir("Converter/video")
+    result = "Converter/video/" + path_list[0]
+
+    return result
+
+def delete_video():
+    import os
+
+    try:
+        path = get_video()
+        os.remove(path)
+        
+        return True
+    except:
+        return False
+
+
+def save_movie(interval, save_to_json=True):
     import os
     import json
     import base64
 
     # Get the name of the movie from the user
     name = input("Name: ")
-
-    # Convert the movie data list to JSON format
-    print("Converting to .json")
-    data_json = json.dumps(data)
 
     # Read the .mp3 file as binary data and convert to Base64
     print("Encoding music")
@@ -46,12 +62,13 @@ def save_movie(data: dict, interval, save_to_json=True):
 
     # Create a dictionary to store all the data
     print("Creating storage for data")
-    movie_data = {
-        'name': name,
-        'data': data_json,
-        'interval': interval,
-        'music': blob_data_base64
-    }
+    with open("Converter/temp/.~lock.temp.json#","r") as file:
+        movie_data = {
+            'name': name,
+            'data': file.read(),
+            'interval': interval,
+            'music': blob_data_base64
+        }
 
     # Save to either a .json or .txt file
     print("Creating file")
@@ -105,7 +122,10 @@ def ideal_ratio(char_numbers) -> int:
             return target_level
     
     # If the file size exceeds the largest defined range, use the lowest target ratio
-    return size_to_ratio[-1][1]
+    ratio = size_to_ratio[-1][1]
+    target_level = math.floor(ratio * 24)
+    target_level = int(target_level)
+    return target_level
 
 # Main function to compress JSON data in parallel using LZMA
 def parallel_zstd_compress(data,level:int):    
@@ -144,7 +164,7 @@ def choose_compression_level(default_level:int=3):
                 level -= 1
                 if pressed == True:
                     time.sleep(0.01)
-        elif key == keyboard.Key.esc:
+        elif key == keyboard.Key.enter:
             listener.stop()
             stop = True
 
@@ -159,8 +179,9 @@ def choose_compression_level(default_level:int=3):
                 empty1 = (level-1)*"-"
                 cursor = "|"
                 empty2 = (24-level)*"-"
-                print("Compression level (escape to save): "+ui.format(empty1,cursor,empty2)+f"{level}/24",end='\r')
+                print("Compression level (enter to save): "+ui.format(empty1,cursor,empty2)+f"{level}/24",end='\r')
                 if stop == True:
+                    input("",end="")
                     return level
     except KeyboardInterrupt:
         listener.stop()
