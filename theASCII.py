@@ -23,7 +23,10 @@ def progress(count,max:int,div:int):
 
 def opposite_color(rgb):
     r, g, b = rgb
-    return (255 - r, 255 - g, 255 - b)
+    if (r+g+b)/3 < 150:
+        return (r+20,g+20,b+20)
+    else: 
+        return (255 - r, 255 - g, 255 - b)
 
 def closest_color(rgb):
     # Initialize variables to store the closest color and minimum distance
