@@ -7,6 +7,8 @@ import logging
 import multiprocessing
 from multiprocessing import Pool, Manager, Value
 
+TEMP_PATH = r"Converter/temp/.~lock.temp.json"
+
 def euclidean_distance(c1, c2):
     return math.sqrt(sum((a - b) ** 2 for a, b in zip(c1, c2)))
 
@@ -301,7 +303,7 @@ def convert():
             path_waiting_list.append(filename)
 
 
-        with Manager() as manager, open("Converter/temp/.~lock.temp.json#","w") as output_file:
+        with Manager() as manager, open(TEMP_PATH,"w") as output_file:
             path_waiting_list2 =  manager.list(path_waiting_list)
             queue = manager.Queue(frame_count)
             lock = manager.Lock()
@@ -326,7 +328,7 @@ def convert():
             print("")
             output_file.write("\n}")
 
-        with open("Converter/temp/.~lock.temp.json#", "r+") as output_file:
+        with open(TEMP_PATH, "r+") as output_file:
             frames_dict = json.load(output_file)
             sorted_keys = sorted(frames_dict.keys(), key=lambda x: int(x.split('_')[1].replace(".png", "")))
             sorted_dict = {key: frames_dict[key] for key in sorted_keys}
@@ -337,7 +339,7 @@ def convert():
             output_file.truncate()
         convert_mp4_to_mp3(store.get_video(), "Converter/music.mp3")
         print("Done converting")
-        with open("Converter/temp/.~lock.temp.json#", "r+") as input_file:
+        with open(TEMP_PATH, "r+") as input_file:
             store.frames_dict = json.loads(input_file.read())
         try:
             store.save_movie(store.frames_dict,frames_interval)
@@ -350,29 +352,37 @@ def convert():
                 print("Movie deleted successfully")
             else:
                 print("Unable to delete file")
-        open(r"Converter\temp\.~lock.temp.json#", "w").close()
+        open(TEMP_PATH, "w").close()
         return sorted_dict
     except Exception as error:
         logging.exception("")
 
-def view(ASCII_movie:dict,frames_interval:int):
+def view(frames_interval:int):
     import threading
     from rich.console import Console
-    term = Console()
     import time
     from blessed import Terminal
     t = Terminal()
     from sys import stdout
-    from rich.console import Console
     clear = Console()
 
-    ready_event = threading.Event()
+    ready_event = multiprocessing.Event()
     music_path = "Converter/music.mp3"
     player = store.Player(music_path,ready_event)
 
     Music_thread = threading.Thread(target=player.play)
+
+    queue = multiprocessing.Queue()
+    rendered = multiprocessing.Value('i',0)
+    played = multiprocessing.Value('i',0)
+    Reader_thread = threading.Thread(target=reader,args=(queue,rendered,played,))
+    Reader_thread.start()
+
+    print(frames_interval)
+
+    while rendered.value <= 30:
+        pass
     
-    start_time = time.perf_counter()
     Music_thread.start()
     print("Waiting for music player...")
     skip_frame = False
@@ -381,36 +391,81 @@ def view(ASCII_movie:dict,frames_interval:int):
         pass
     with t.location() and t.hidden_cursor():
         clear.clear()
+        start_time = time.perf_counter()
         while not player.state:
             pass
-        for index, element in enumerate(ASCII_movie.items()):
-            # Calculate the expected time for the current frame
-            expected_time = start_time + index * frames_interval
+        while not queue.empty():
+            # Calculate the expected time for the current fram
+            expected_time = start_time + played.value * frames_interval
             
             # Clear the console and print the frame
             if not skip_frame:
-                stdout.write(t.move_xy(0,0)+element[1])
+                stdout.write(t.move_xy(0,0)+queue.get_nowait())
             else:
                 skip_frame = False
 
             # Calculate how much time to sleep
             current_time = time.perf_counter()
             time_to_sleep = expected_time - current_time
+            print(time_to_sleep)
 
             # Only sleep if there is time left
             if time_to_sleep > 0:
                 time.sleep(time_to_sleep)
             else:
                 skip_frame = True
+            played.value += 1
 
                     
 
     Music_thread.join()
-    term.clear()
+    clear.clear()
+
+def find_lenght(stream, chunk_size=2048):
+    while True:
+        chunk = stream.read(chunk_size)  # I propose 4096 or so
+        if chunk.find(',') == -1:
+            chunk_size = chunk_size*2
+        else:
+            char_list = chunk.split(',')
+            lenght = len(char_list[0])
+            index1 = char_list[0].find("[")
+            index2 = char_list[0].find("]")
+            if index1 != -1:
+                lenght -= 1
+            if index2 != -1:
+                lenght -= 1
+            return lenght 
+ 
+def each_chunk(stream, separator, chunk_size):
+  buffer = ''
+  while True:  # until EOF
+    chunk = stream.read(chunk_size)  # I propose 4096 or so
+    if not chunk:  # EOF?
+      yield buffer
+      break
+    buffer += chunk
+    while True:  # until no separator is found
+      try:
+        part, buffer = buffer.split(separator, 1)
+      except ValueError:
+        break
+      else:
+        yield part
+
+def reader(queue:multiprocessing.Queue,rendered,played):
+    with open(TEMP_PATH) as file:
+        lenght = find_lenght(file)
+        chunk = lenght*4+4
+        for element in each_chunk(file,",",chunk):
+            queue.put(element)
+            while rendered.value - played.value > 200:
+                pass
+            rendered.value += 1
+
+
 
 def browse():
-    import json
-
     lib = store.get_all()
     files_dict = {}
     if lib == []:
@@ -422,14 +477,17 @@ def browse():
     ch = input("View (number) : ")
     try:
         files_dict[ch]
-        movie = store.extract_movie(files_dict[ch])
-        name = movie["name"]
-        data = movie["data"]
-        interval = movie["interval"]
-        music_path = movie["music"]
+        try:
+            interval = store.extract_movie(files_dict[ch])
+        except:
+            open(TEMP_PATH, "w").close()
 
         input("Start")
-        view(data,interval)
+        try:
+            view(interval)
+        except:
+            quit()
+        open(TEMP_PATH, "w").close()
     except KeyError:
         print("Invalid number")
 

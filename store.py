@@ -106,7 +106,9 @@ def ideal_ratio(char_numbers) -> int:
     
     # If file size is below the smallest threshold, return the highest ratio (least compression)
     if file_size < size_to_ratio[0][0]:
-        return size_to_ratio[0][1]
+        ratio = round(size_to_ratio[0][1]*24)
+        ratio = int(ratio)
+        return ratio
     
     # Iterate over ranges to find where the file size fits and interpolate ratio
     for i in range(1, len(size_to_ratio)):
@@ -117,13 +119,13 @@ def ideal_ratio(char_numbers) -> int:
             # Interpolate ratio based on file size within the current range
             interpolation = (file_size - size_low) / (size_high - size_low)
             target_ratio = ratio_low + interpolation * (ratio_high - ratio_low)
-            target_level = math.floor(target_ratio * 24)
+            target_level = round(target_ratio * 24,0)
             target_level = int(target_level)
             return target_level
     
     # If the file size exceeds the largest defined range, use the lowest target ratio
     ratio = size_to_ratio[-1][1]
-    target_level = math.floor(ratio * 24)
+    target_level = round(ratio * 24)
     target_level = int(target_level)
     return target_level
 
@@ -212,8 +214,10 @@ def extract_movie(json_file_path):
 
     # Extract the movie data
     name = movie_data['name']
+    print(name)
     data_json = movie_data['data']
     interval = movie_data['interval']
+    print(interval)
     music_base64 = movie_data['music']
 
     print("Done. Decoding music")
@@ -232,14 +236,16 @@ def extract_movie(json_file_path):
     print("Done, preparing movie...")
 
     # Convert the JSON movie data back to a Python list
-    movie_data_list = json.loads(data_json)
+    movie_data_dict = json.loads(data_json)
+    with open(r'Converter\temp\.~lock.temp.json', 'w') as file:
+        file.write("[")
+        for i, (key, value) in enumerate(movie_data_dict.items()):
+            file.write(f'"{value}"')  # Write the second element as a JSON string
+            if i < len(movie_data_dict) - 1:
+                file.write(",")  # Add a comma except for the last item
+        file.write("]")  # End the JSON array
 
     print(f"Movie '{name}' extracted.")
 
     # Return the extracted data
-    return {
-        'name': name,
-        'data': movie_data_list,
-        'interval': interval,
-        'music': music_file_path
-    }
+    return interval
