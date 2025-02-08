@@ -25,43 +25,7 @@ def progress(count,max:int,div:int):
 
 def opposite_color(rgb):
     r, g, b = rgb
-    return (255 - r, 255 - g, 255 - b)
-
-def closest_color(rgb):
-    # Initialize variables to store the closest color and minimum distance
-    colors = {
-    "BLACK": (0, 0, 0),
-    "BLUE": (0, 0, 255),
-    "CYAN": (0, 255, 255),
-    "GREEN": (0, 255, 0),
-    "MAGENTA": (255, 0, 255),
-    "LIGHTRED": (200, 0, 0),
-    "WHITE": (255,255,255),
-    "YELLOW": (255, 255, 0),
-    "GRAY":(128, 128, 128),
-    "LIGHTBLUE":(0, 0, 128),
-    "LIGHTGREEN":(0,128,0),
-    "PURPLE":(128,0,128),
-    "RED":(255,0,0)  
-    }
-
-    closest = None
-    min_dist = float('inf')
-    
-    # Iterate through the predefined colors
-    for color_name, color_rgb in colors.items():
-        # Calculate the Euclidean distance between the input RGB and the current color
-        dist = euclidean_distance(rgb, color_rgb)
-        
-        # If the distance is the smallest found so far, update the closest color
-        if dist < min_dist:
-            min_dist = dist
-            closest = color_name
-            
-    return closest
-
-global frames_interval
-global path_waiting_list
+    return (max(0, r-50), max(0, g-50), max(0, b-50))
 
 def extract_frames_with_progress(video_path, output_folder):
     # Create the output folder if it doesn't exist
@@ -108,8 +72,9 @@ def extract_frames_with_progress(video_path, output_folder):
 
 def get_terminal_size():
     import shutil
+    modificator = 0.95
     size = shutil.get_terminal_size((80, 20))  # Fallback size if unable to get terminal size
-    return size.columns-5, size.lines
+    return int(size.columns * modificator), int(size.lines * modificator)
 
 def image_to_ascii(image_path, dimension):
     from PIL import Image
@@ -319,7 +284,7 @@ def view(ASCII_movie:dict,frames_interval:int):
     #print(ASCII_movie.items())
     while not ready_event.is_set():
         pass
-    with t.location():
+    with t.location(), t.hidden_cursor():
         clear.clear()
         while not player.state:
             pass
