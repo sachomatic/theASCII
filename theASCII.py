@@ -308,7 +308,6 @@ def view(ASCII_movie:dict,frames_interval:int):
     while not ready_event.is_set():
         pass
     with t.location(), t.hidden_cursor():
-    with t.location() and t.hidden_cursor():
         clear.clear()
         while not player.state:
             pass
