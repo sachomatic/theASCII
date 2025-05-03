@@ -174,8 +174,10 @@ __pycache__/
 saves/
 frames/
 temp/
+video/
 *.mp4
 music.mp3
+git-filter_repo.py
 
 # C extensions
 *.so
