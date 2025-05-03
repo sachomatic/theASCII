@@ -46,7 +46,7 @@ def delete_video():
         return False
 
 
-def save_movie(interval, save_to_json=True):
+def save_movie(interval):
     import os
     import json
     import base64
@@ -181,7 +181,7 @@ def choose_compression_level(default_level:int=3):
                 empty2 = (24-level)*"-"
                 print("Compression level (enter to save): "+ui.format(empty1,cursor,empty2)+f"{level}/24",end='\r')
                 if stop == True:
-                    input("",end="")
+                    input("")
                     return level
     except KeyboardInterrupt:
         listener.stop()
@@ -237,8 +237,6 @@ def extract_movie(json_file_path):
 
     # Return the extracted data
     return {
-        'name': name,
         'data': movie_data_list,
         'interval': interval,
-        'music': music_file_path
     }

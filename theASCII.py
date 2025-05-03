@@ -1,14 +1,12 @@
-import multiprocessing.queues
-import cv2,os
+import os
 from tqdm import tqdm
 import store
-import math
 import logging
 import multiprocessing
-from multiprocessing import Pool, Manager, Value
-
-def euclidean_distance(c1, c2):
-    return math.sqrt(sum((a - b) ** 2 for a, b in zip(c1, c2)))
+from multiprocessing import Pool, Manager, Queue, cpu_count, Process
+from decord import VideoReader,cpu
+import cv2
+from numpy import ndarray
 
 def progress(count,max:int,div:int):
     import math
@@ -25,48 +23,52 @@ def opposite_color(rgb):
     r, g, b = rgb
     return (max(0, r-50), max(0, g-50), max(0, b-50))
 
+def save_frame_worker(queue):
+    while True:
+        item = queue.get()
+        if item is None:
+            break
+        frame_number, frame, output_folder = item
+        frame_filename = os.path.join(output_folder, f"frame_{frame_number:05d}.png")
+        cv2.imwrite(frame_filename, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+
 def extract_frames_with_progress(video_path, output_folder):
-    # Create the output folder if it doesn't exist
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
-    
-    # Open the video file
-    video_capture = cv2.VideoCapture(video_path)
-    
-    # Check if video opened successfully
-    if not video_capture.isOpened():
-        print("Error: Could not open video.")
-        return
-    
-    # Get the total number of frames
-    frame_count = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
-    fps = video_capture.get(cv2.CAP_PROP_FPS)
-    frame_interval = 1 / fps
-    print(f"Frame rate: {fps} frames per second")
-    print(f"Time interval between frames: {frame_interval} seconds")
 
-    frame_number = 0
-    
+    video_capture = VideoReader(video_path, ctx=cpu(0))
+
+    frame_count = len(video_capture)
+    fps = video_capture.get_avg_fps()
+    frame_interval = 1 / fps
+
+    queue = Queue(maxsize=cpu_count() * 2)
+
+    # Create worker processes
+    num_workers = cpu_count()
+    processes = []
+    for _ in range(num_workers):
+        p = Process(target=save_frame_worker, args=(queue,))
+        p.start()
+        processes.append(p)
+
     with tqdm(total=frame_count, desc="Extracting frames") as pbar:
-        while True:
-            # Read the next frame
-            success, frame = video_capture.read()
-            
-            # If the frame was not read successfully, break the loop
-            if not success:
-                break
-            
-            # Save the frame as an image file
-            frame_filename = os.path.join(output_folder, f"frame_{frame_number:04d}.png")
-            cv2.imwrite(frame_filename, frame)
-            
-            frame_number += 1
+        frames = range(frame_count)
+        for frame_number in frames:
+            frame = video_capture[frame_number].asnumpy()
+            queue.put((frame_number, frame, output_folder))
             pbar.update(1)
-    
-    # Release the video capture object
-    video_capture.release()
+
+    # Tell workers to stop
+    for _ in processes:
+        queue.put(None)
+
+    # Wait for workers to finish
+    for p in processes:
+        p.join()
+
     print("Done extracting frames.")
-    return frame_interval,frame_count
+    return frame_interval, frame_count
 
 def get_terminal_size():
     import shutil
@@ -169,14 +171,13 @@ def check_if_already_extracted_footage():
     frame_count = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
 
     try:
-        for index,filename in enumerate(os.listdir("Converter/frames")):
-            pass
+        lenght = len(os.listdir("Converter/frames"))
         fps = video_capture.get(cv2.CAP_PROP_FPS)
         frame_interval = 1 / fps
-        if index+1 == frame_count:
+        if lenght == frame_count:
             return (True,frame_interval,frame_count)
         else:
-            print(frame_count,index)
+            print(frame_count,lenght)
             return (False,None,None)
     except:
         return (False,None,None)
@@ -251,7 +252,6 @@ def convert():
                 output_file.write(json_entry[1:-1])  # Strip the outer braces
 
                 first_entry = False
-                #store.frames_dict.append(queue.get())
             output_file.write("\n}")
 
         with open("Converter/temp/.~lock.temp.json#", "r+") as output_file:
@@ -265,34 +265,27 @@ def convert():
             output_file.truncate()
         convert_mp4_to_mp3(store.get_video(), "Converter/music.mp3")
         print("Done converting")
-        with open("Converter/temp/.~lock.temp.json#", "r+") as input_file:
-            store.frames_dict = json.loads(input_file.read())
         try:
-            store.save_movie(store.frames_dict,frames_interval)
+            store.save_movie(frames_interval)
+            if input("Delete frames (this will save up a lot of space) Y/N : ").upper() == "Y":
+                delete_all_files("Converter/frames")
         except:
             print("Unable to store film:")
             logging.exception("")
-        choice = input("Deleting movie? Y/N")
-        if choice.upper() == "Y":
-            if store.delete_video():
-                print("Movie deleted successfully")
-            else:
-                print("Unable to delete file")
+    
         open("Converter/temp/.~lock.temp.json#", "w").close()
         return sorted_dict
-    except Exception as error:
+    except Exception:
         logging.exception("")
 
 def view(ASCII_movie:dict,frames_interval:int):
     import threading
-    from rich.console import Console
-    term = Console()
     import time
     from blessed import Terminal
     t = Terminal()
-    from sys import stdout
     from rich.console import Console
     clear = Console()
+    from sys import stdout
 
     ready_event = threading.Event()
     music_path = "Converter/music.mp3"
@@ -304,9 +297,8 @@ def view(ASCII_movie:dict,frames_interval:int):
     Music_thread.start()
     print("Waiting for music player...")
     skip_frame = False
-    #print(ASCII_movie.items())
-    while not ready_event.is_set():
-        pass
+
+    ready_event.wait()
     with t.location(), t.hidden_cursor():
         clear.clear()
         while not player.state:
@@ -334,11 +326,9 @@ def view(ASCII_movie:dict,frames_interval:int):
                     
 
     Music_thread.join()
-    term.clear()
+    clear.clear()
 
 def browse():
-    import json
-
     lib = store.get_all()
     if lib == []:
         print("No movies saved")
@@ -349,12 +339,9 @@ def browse():
         dict[str(index+1)] = element
     ch = input("View (number) : ")
     try:
-        dict[ch]
         movie = store.extract_movie(dict[ch])
-        name = movie["name"]
         data = movie["data"]
         interval = movie["interval"]
-        music_path = movie["music"]
 
         input("Start")
         view(data,interval)
@@ -365,23 +352,7 @@ if __name__ == "__main__":
     setting_quality()
     inp = input("Browse / Convert : B/C : ").upper()
 
-    if inp == "ERASE":
-        store.delete_all()
-    elif inp == "CHANGE":
-        lib = store.get_all()
-        dict = {}
-        for index, element in enumerate(lib):
-            print(f"{index + 1} : {element[1]}")
-            dict[str(index + 1)] = element
-        inp2 = input("Change name of (number) :")
-        try:
-            dict[inp2]
-            name = dict[inp2][1]
-            new_name = input("New name : ")
-            store.change_name(new_name, name)
-        except:
-            print("Invalid number")
-    elif inp == "C":
+    if inp == "C":
         dict = convert()
         input("Start")
         view(dict, frames_interval)
