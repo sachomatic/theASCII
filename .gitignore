@@ -173,7 +173,7 @@ __pycache__/
 
 saves/
 frames/
-video.mp4
+*.mp4
 music.mp3
 
 # C extensions
