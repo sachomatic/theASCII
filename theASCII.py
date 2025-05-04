@@ -224,7 +224,6 @@ def convert_mp4_to_mp3(input_file, output_file=None):
     video_clip.close()
 
 def single_convert(dimension,lock,path_waiting_list,add_wt_dict:multiprocessing.Queue,maximum):
-def single_convert(dimension,lock,path_waiting_list,add_wt_dict:multiprocessing.Queue,maximum):
     while True:
         with lock:
             if len(path_waiting_list) == 0:
@@ -259,9 +258,6 @@ def convert():
             frames_interval,frame_count = extract_frames_with_progress(store.get_video(),"Converter/frames")
         for filename in os.listdir("Converter/frames"):
             path_waiting_list.append(filename)
-
-
-        with Manager() as manager, open("Converter/temp/.~lock.temp.json#","w") as output_file:
 
         with Manager() as manager, open("Converter/temp/.~lock.temp.json#","w") as output_file:
             path_waiting_list2 =  manager.list(path_waiting_list)
@@ -363,13 +359,7 @@ def view(ASCII_movie:dict,frames_interval:int):
             if time_to_sleep > 0:
                 time.sleep(time_to_sleep)
             else:
-                skip_frame = True
-
-                    
-            else:
-                skip_frame = True
-
-                    
+                skip_frame = True                    
 
     Music_thread.join()
     clear.clear()
