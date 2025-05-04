@@ -73,12 +73,16 @@ def extract_frames_with_progress(video_path, output_folder):
 def get_terminal_size():
     import shutil
     modificator = 0.95
+    modificator = 0.95
     size = shutil.get_terminal_size((80, 20))  # Fallback size if unable to get terminal size
+    return int(size.columns * modificator), int(size.lines * modificator)
     return int(size.columns * modificator), int(size.lines * modificator)
 
 def image_to_ascii(image_path, dimension):
     from PIL import Image
     from colorama import Fore, Style
+    from blessed import Terminal
+    t = Terminal()
     from blessed import Terminal
     t = Terminal()
 
@@ -119,6 +123,15 @@ def image_to_ascii(image_path, dimension):
         else:
             col = fn_col + bg_col
             ascii_char = ASCII_CHARS[min(len(ASCII_CHARS) - 1, g_pixels[index] // (256 // len(ASCII_CHARS)))]
+        opposite = opposite_color(pixel)
+        fn_col = t.color_rgb(opposite[0],opposite[1],opposite[2])
+        bg_col = t.on_color_rgb(pixel[0],pixel[1],pixel[2])
+        if pixel == (0,0,0):
+            col = ""
+            ascii_char = " "
+        else:
+            col = fn_col + bg_col
+            ascii_char = ASCII_CHARS[min(len(ASCII_CHARS) - 1, g_pixels[index] // (256 // len(ASCII_CHARS)))]
         ascii_img_parts.append(col + ascii_char + Style.RESET_ALL)
     
     # Split string into multiple lines
@@ -134,7 +147,9 @@ def set_font_size(size):
 
 def setting_quality():
     from pynput import keyboard as k
+    from pynput import keyboard as k
     import time
+    keyboard = k.Controller()
     keyboard = k.Controller()
     while True:
         x,y = get_terminal_size()
@@ -147,9 +162,18 @@ def setting_quality():
             with keyboard.pressed(k.Key.ctrl):
                 minus = "\u2013"
                 keyboard.press(minus)
+        ch = input("Increase or decrease quality (+/- , enter to exit) : ")
+        if ch == "-":
+            with keyboard.pressed(k.Key.ctrl):
+                keyboard.press("+")
+        elif ch == "+":
+            with keyboard.pressed(k.Key.ctrl):
+                minus = "\u2013"
+                keyboard.press(minus)
         elif ch == "":
             break
         else:
+            print("unknown command")
             print("unknown command")
 
 def delete_all_files(directory):
@@ -166,6 +190,7 @@ def delete_all_files(directory):
             print(f"Failed to delete {file_path}. Reason: {e}")
 
 def check_if_already_extracted_footage():
+    video_path = store.get_video()
     video_path = store.get_video()
     video_capture = cv2.VideoCapture(video_path)
     frame_count = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -199,6 +224,7 @@ def convert_mp4_to_mp3(input_file, output_file=None):
     video_clip.close()
 
 def single_convert(dimension,lock,path_waiting_list,add_wt_dict:multiprocessing.Queue,maximum):
+def single_convert(dimension,lock,path_waiting_list,add_wt_dict:multiprocessing.Queue,maximum):
     while True:
         with lock:
             if len(path_waiting_list) == 0:
@@ -206,11 +232,13 @@ def single_convert(dimension,lock,path_waiting_list,add_wt_dict:multiprocessing.
             filename = path_waiting_list[0]
             path_waiting_list.pop(0)
         progress((maximum-len(path_waiting_list)),maximum,30)
+        progress((maximum-len(path_waiting_list)),maximum,30)
         ascii = image_to_ascii(f"Converter/frames/{filename}",dimension)
         new = [filename,ascii]
         add_wt_dict.put(new)
 
 def convert():
+    import json
     import json
 
     global frames_interval
@@ -228,17 +256,24 @@ def convert():
             delete_all_files("Converter/frames")
             print("Starting...")
             frames_interval,frame_count = extract_frames_with_progress(store.get_video(),"Converter/frames")
+            frames_interval,frame_count = extract_frames_with_progress(store.get_video(),"Converter/frames")
         for filename in os.listdir("Converter/frames"):
             path_waiting_list.append(filename)
 
+
+        with Manager() as manager, open("Converter/temp/.~lock.temp.json#","w") as output_file:
 
         with Manager() as manager, open("Converter/temp/.~lock.temp.json#","w") as output_file:
             path_waiting_list2 =  manager.list(path_waiting_list)
             queue = manager.Queue(frame_count)
             lock = manager.Lock()
             args = [(dimension,lock,path_waiting_list2,queue,frame_count) for _ in path_waiting_list2]
+            args = [(dimension,lock,path_waiting_list2,queue,frame_count) for _ in path_waiting_list2]
             with Pool(processes=multiprocessing.cpu_count()) as pool:
                 pool.starmap(single_convert, args)
+
+            output_file.write("{\n")
+            first_entry = True
 
             output_file.write("{\n")
             first_entry = True
@@ -290,7 +325,10 @@ def view(ASCII_movie:dict,frames_interval:int):
     ready_event = threading.Event()
     music_path = "Converter/music.mp3"
     player = store.Player(music_path,ready_event)
+    music_path = "Converter/music.mp3"
+    player = store.Player(music_path,ready_event)
 
+    Music_thread = threading.Thread(target=player.play)
     Music_thread = threading.Thread(target=player.play)
     
     start_time = time.perf_counter()
@@ -312,6 +350,10 @@ def view(ASCII_movie:dict,frames_interval:int):
                 stdout.write(t.move_xy(0,0)+element[1])
             else:
                 skip_frame = False
+            if not skip_frame:
+                stdout.write(t.move_xy(0,0)+element[1])
+            else:
+                skip_frame = False
 
             # Calculate how much time to sleep
             current_time = time.perf_counter()
@@ -320,6 +362,10 @@ def view(ASCII_movie:dict,frames_interval:int):
             # Only sleep if there is time left
             if time_to_sleep > 0:
                 time.sleep(time_to_sleep)
+            else:
+                skip_frame = True
+
+                    
             else:
                 skip_frame = True
 
