@@ -177,7 +177,7 @@ temp/
 video/
 *.mp4
 music.mp3
-git-filter_repo.py
+git-filter-repo.py
 
 # C extensions
 *.so
