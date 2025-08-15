@@ -11,7 +11,6 @@ certifi==2025.1.31
 charset-normalizer==3.4.1
 colorama==0.4.6
 decorator==4.4.2
-decord==0.6.0
 idna==3.10
 imageio==2.37.0
 imageio-ffmpeg==0.6.0
