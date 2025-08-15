@@ -147,25 +147,13 @@ def set_font_size(size):
     print(f"\033[{size}m", end='')
 
 def setting_quality():
-    from pynput import keyboard as k
     import time
-    keyboard = k.Controller()
-    keyboard = k.Controller()
     while True:
         x,y = get_terminal_size()
         print(f"Actual setting : {x}x{y}")
-        ch = input("Increase or decrease quality (+/- , enter to exit) : ")
-        if ch == "-":
-            with keyboard.pressed(k.Key.ctrl):
-                keyboard.press("+")
-        elif ch == "+":
-            with keyboard.pressed(k.Key.ctrl):
-                minus = "\u2013"
-                keyboard.press(minus)
-        elif ch == "":
+        ch = input("Increase or decrease quality (ctrl and +/- , enter to exit) : ")
+        if ch == "":
             break
-        else:
-            print("unknown command")
 
 def delete_all_files(directory):
     if not os.path.exists(directory):
