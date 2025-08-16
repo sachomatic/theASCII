@@ -157,7 +157,7 @@ def get_key():
 
 def choose_compression_level(default_level:int=3):
     import time
-    print(f"Ideal level : {default_level} Hit q to quit")
+    print(f"Ideal level : {default_level}")
     global level,stop
     level = default_level
 
@@ -229,3 +229,7 @@ def extract_movie(json_file_path):
         'data': movie_data_list,
         'interval': interval,
     }
+
+while True:
+    key = get_key()
+    print(key)
