@@ -157,44 +157,23 @@ def get_key():
 
 def choose_compression_level(default_level:int=3):
     import time
-    print(f"Ideal level : {default_level}")
-    global listener,level,stop
+    print(f"Ideal level : {default_level} Hit q to quit")
+    global level,stop
     level = default_level
-    stop = False
-    def on_press(key): 
-        global level,listener,pressed,stop
-        pressed = True
-        if key == keyboard.Key.right: # only if key is not held
-            if level < 24:
-                level += 1
-                if pressed == True:
-                    time.sleep(0.01)
-        if key == keyboard.Key.left: # only if key is not held
-            if level > 1:
-                level -= 1
-                if pressed == True:
-                    time.sleep(0.01)
-        elif key == keyboard.Key.enter:
-            listener.stop()
-            stop = True
 
-    def on_release(key):
-        global pressed
-        pressed = False
-
-    try:
-        with keyboard.Listener(on_press=on_press,on_release=on_release) as listener: 
-            ui = "[{}{}{}]"
-            while True:
-                empty1 = (level-1)*"-"
-                cursor = "|"
-                empty2 = (24-level)*"-"
-                print("Compression level (enter to save): "+ui.format(empty1,cursor,empty2)+f"{level}/24",end='\r')
-                if stop == True:
-                    input("")
-                    return level
-    except KeyboardInterrupt:
-        listener.stop()
+    ui = "[{}{}{}]"
+    while True:
+        key = get_key()
+        if key == "\x1b[D":
+            level -= 1
+        elif key == "\x1b[C":
+            level += 1
+        elif key == "q":
+            return level
+        empty1 = (level-1)*"-"
+        cursor = "|"
+        empty2 = (24-level)*"-"
+        print("Compression level (enter to save): "+ui.format(empty1,cursor,empty2)+f"{level}/24",end='\r')
             
 
 def get_all():
@@ -250,13 +229,3 @@ def extract_movie(json_file_path):
         'data': movie_data_list,
         'interval': interval,
     }
-
-while True:
-    key = get_key()
-    if key == "\x1b[D":
-        print("LEFT arrow detected")
-    elif key == "\x1b[C":
-        print("RIGHT arrow detected")
-    elif key == "q":
-        print("Exiting…")
-        break
