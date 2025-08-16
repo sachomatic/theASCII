@@ -290,22 +290,22 @@ def view(ASCII_movie:dict,frames_interval:int):
     clear = Console()
     from sys import stdout
 
-    ready_event = threading.Event()
-    music_path = "Converter/music.mp3"
-    player = store.Player(music_path,ready_event)
+    # ready_event = threading.Event()
+    # music_path = "Converter/music.mp3"
+    # player = store.Player(music_path,ready_event)
 
-    Music_thread = threading.Thread(target=player.play)
+    # Music_thread = threading.Thread(target=player.play)
     
     start_time = time.perf_counter()
-    Music_thread.start()
-    print("Waiting for music player...")
+    # Music_thread.start()
+    # print("Waiting for music player...")
     skip_frame = False
 
-    ready_event.wait()
+    # ready_event.wait()
     with t.location(), t.hidden_cursor():
         clear.clear()
-        while not player.state:
-            pass
+        # while not player.state:
+        #     pass
         for index, element in enumerate(ASCII_movie.items()):
             # Calculate the expected time for the current frame
             expected_time = start_time + index * frames_interval
@@ -326,7 +326,7 @@ def view(ASCII_movie:dict,frames_interval:int):
             else:
                 skip_frame = True                    
 
-    Music_thread.join()
+    # Music_thread.join()
     clear.clear()
 
 def browse():
