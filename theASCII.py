@@ -235,27 +235,27 @@ def convert():
         for filename in os.listdir("Converter/frames"):
             path_waiting_list.append(filename)
 
-        with Manager() as manager, open("Converter/temp/.~lock.temp.json#","w") as output_file:
-            path_waiting_list2 =  manager.list(path_waiting_list)
-            queue = manager.Queue(frame_count)
-            lock = manager.Lock()
-            args = [(dimension,lock,path_waiting_list2,queue,frame_count) for _ in path_waiting_list2]
-            with Pool(processes=multiprocessing.cpu_count()) as pool:
-                pool.starmap(single_convert, args)
+        # with Manager() as manager, open("Converter/temp/.~lock.temp.json#","w") as output_file:
+        #     path_waiting_list2 =  manager.list(path_waiting_list)
+        #     queue = manager.Queue(frame_count)
+        #     lock = manager.Lock()
+        #     args = [(dimension,lock,path_waiting_list2,queue,frame_count) for _ in path_waiting_list2]
+        #     with Pool(processes=multiprocessing.cpu_count()) as pool:
+        #         pool.starmap(single_convert, args)
 
-            output_file.write("{\n")
-            first_entry = True
+        #     output_file.write("{\n")
+        #     first_entry = True
 
-            while not queue.empty():
-                filename, ascii_art = queue.get()
-                store.frames_dict[filename] = ascii_art
-                if not first_entry:
-                    output_file.write(",\n")
-                json_entry = json.dumps({filename: ascii_art})
-                output_file.write(json_entry[1:-1])  # Strip the outer braces
+        #     while not queue.empty():
+        #         filename, ascii_art = queue.get()
+        #         store.frames_dict[filename] = ascii_art
+        #         if not first_entry:
+        #             output_file.write(",\n")
+        #         json_entry = json.dumps({filename: ascii_art})
+        #         output_file.write(json_entry[1:-1])  # Strip the outer braces
 
-                first_entry = False
-            output_file.write("\n}")
+        #         first_entry = False
+        #     output_file.write("\n}")
 
         with open("Converter/temp/.~lock.temp.json#", "r+") as output_file:
             frames_dict = json.load(output_file)
