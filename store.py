@@ -144,7 +144,7 @@ def decompress_chunk(compressed_data):
         print(f"Warning: {error}")
         return None
 
-def get_key():
+def  get_key():
     """Read a single keypress from stdin and return it."""
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
@@ -153,6 +153,8 @@ def get_key():
         ch = sys.stdin.read(3)  # arrows send 3 chars like "\x1b[D"
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    if len(set(ch)) == 1:
+        ch = ch[0]
     return ch
 
 def choose_compression_level(default_level:int=3):
