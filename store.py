@@ -1,8 +1,8 @@
 from multiprocessing import Pool,cpu_count
-import json
 import zstandard as zstd
-import io
-from enum import IntEnum
+import sys
+import termios
+import tty
 
 frames_dict = {}
 frames_interval = 0
@@ -144,8 +144,18 @@ def decompress_chunk(compressed_data):
         print(f"Warning: {error}")
         return None
 
+def get_key():
+    """Read a single keypress from stdin and return it."""
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)   # raw mode = no line buffering
+        ch = sys.stdin.read(3)  # arrows send 3 chars like "\x1b[D"
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    return ch
+
 def choose_compression_level(default_level:int=3):
-    from pynput import keyboard
     import time
     print(f"Ideal level : {default_level}")
     global listener,level,stop
@@ -240,3 +250,13 @@ def extract_movie(json_file_path):
         'data': movie_data_list,
         'interval': interval,
     }
+
+while True:
+    key = get_key()
+    if key == "\x1b[D":
+        print("LEFT arrow detected")
+    elif key == "\x1b[C":
+        print("RIGHT arrow detected")
+    elif key == "q":
+        print("Exiting…")
+        break
