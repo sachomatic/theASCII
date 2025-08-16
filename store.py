@@ -175,7 +175,7 @@ def choose_compression_level(default_level:int=3):
         empty1 = (level-1)*"-"
         cursor = "|"
         empty2 = (24-level)*"-"
-        print("Compression level (enter to save): "+ui.format(empty1,cursor,empty2)+f"{level}/24",end='\r')
+        print("Compression level (q three times to save): "+ui.format(empty1,cursor,empty2)+f"{level}/24",end='\r')
             
 
 def get_all():
@@ -231,7 +231,3 @@ def extract_movie(json_file_path):
         'data': movie_data_list,
         'interval': interval,
     }
-
-while True:
-    key = get_key()
-    print(key)
