@@ -8,16 +8,13 @@ from decord import VideoReader,cpu
 import cv2
 from numpy import ndarray
 
-def progress(count,max:int,div:int):
+def progress(current_number:int,maximum:int,space:int):
     import math
-    pr = count * div / max
+    pr = current_number * space / maximum
     pr = math.floor(pr)
-    end = '\r'
     full = pr*"#" 
-    empty = (div-pr)*"-"
-    print(f"[{full}{empty}]" + f"{count}/{max}",end=end)
-    if count == max:
-        print("")
+    empty = (space-pr)*"-"
+    return f"[{full}{empty}]" + f"{current_number}/{maximum}"
 
 def opposite_color(rgb):
     r, g, b = rgb
@@ -76,9 +73,8 @@ def get_terminal_size():
     modificator = 0.95
     size = shutil.get_terminal_size((80, 20))  # Fallback size if unable to get terminal size
     return int(size.columns * modificator), int(size.lines * modificator)
-    return int(size.columns * modificator), int(size.lines * modificator)
 
-def image_to_ascii(image_path, dimension):
+def image_to_ascii(image_path, dimension, current, max):
     from PIL import Image
     from colorama import Fore, Style
     from blessed import Terminal
@@ -119,16 +115,7 @@ def image_to_ascii(image_path, dimension):
         bg_col = t.on_color_rgb(pixel[0],pixel[1],pixel[2])
         if pixel == (0,0,0):
             col = ""
-            ascii_char = " "
-        else:
-            col = fn_col + bg_col
-            ascii_char = ASCII_CHARS[min(len(ASCII_CHARS) - 1, g_pixels[index] // (256 // len(ASCII_CHARS)))]
-        opposite = opposite_color(pixel)
-        fn_col = t.color_rgb(opposite[0],opposite[1],opposite[2])
-        bg_col = t.on_color_rgb(pixel[0],pixel[1],pixel[2])
-        if pixel == (0,0,0):
-            col = ""
-            ascii_char = " "
+            ascii_char = fn_col + " " + Style.RESET_ALL
         else:
             col = fn_col + bg_col
             ascii_char = ASCII_CHARS[min(len(ASCII_CHARS) - 1, g_pixels[index] // (256 // len(ASCII_CHARS)))]
@@ -139,6 +126,8 @@ def image_to_ascii(image_path, dimension):
     for i in range(0, len(ascii_img_parts), new_width):
         ascii_img += ''.join(ascii_img_parts[i:i + new_width]) + "\n"
     
+    ascii_img += progress(current,max,new_width)
+    
     return ascii_img
 
 def set_font_size(size):
@@ -146,35 +135,13 @@ def set_font_size(size):
     print(f"\033[{size}m", end='')
 
 def setting_quality():
-    from pynput import keyboard as k
-    from pynput import keyboard as k
-    import time
-    keyboard = k.Controller()
-    keyboard = k.Controller()
-    while True:
-        x,y = get_terminal_size()
-        print(f"Actual setting : {x}x{y}")
-        ch = input("Increase or decrease quality (+/- , enter to exit) : ")
-        if ch == "-":
-            with keyboard.pressed(k.Key.ctrl):
-                keyboard.press("+")
-        elif ch == "+":
-            with keyboard.pressed(k.Key.ctrl):
-                minus = "\u2013"
-                keyboard.press(minus)
-        ch = input("Increase or decrease quality (+/- , enter to exit) : ")
-        if ch == "-":
-            with keyboard.pressed(k.Key.ctrl):
-                keyboard.press("+")
-        elif ch == "+":
-            with keyboard.pressed(k.Key.ctrl):
-                minus = "\u2013"
-                keyboard.press(minus)
-        elif ch == "":
-            break
-        else:
-            print("unknown command")
-            print("unknown command")
+    x,y = get_terminal_size()
+    print(f"Actual setting : {x}x{y}")
+    ch = input("Increase or decrease quality with the terminal font size (ctrl +/- , enter to exit) : ")
+    if ch != "":
+        return False
+    else:
+        return True
 
 def delete_all_files(directory):
     if not os.path.exists(directory):
@@ -190,7 +157,6 @@ def delete_all_files(directory):
             print(f"Failed to delete {file_path}. Reason: {e}")
 
 def check_if_already_extracted_footage():
-    video_path = store.get_video()
     video_path = store.get_video()
     video_capture = cv2.VideoCapture(video_path)
     frame_count = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -230,9 +196,8 @@ def single_convert(dimension,lock,path_waiting_list,add_wt_dict:multiprocessing.
                 break
             filename = path_waiting_list[0]
             path_waiting_list.pop(0)
-        progress((maximum-len(path_waiting_list)),maximum,30)
-        progress((maximum-len(path_waiting_list)),maximum,30)
-        ascii = image_to_ascii(f"Converter/frames/{filename}",dimension)
+        print(progress(maximum-len(path_waiting_list),maximum,30)+("\n" if maximum == maximum-len(path_waiting_list) else ""),end="\r")
+        ascii = image_to_ascii(f"Converter/frames/{filename}",dimension,maximum-len(path_waiting_list),maximum)
         new = [filename,ascii]
         add_wt_dict.put(new)
 
@@ -255,7 +220,6 @@ def convert():
             delete_all_files("Converter/frames")
             print("Starting...")
             frames_interval,frame_count = extract_frames_with_progress(store.get_video(),"Converter/frames")
-            frames_interval,frame_count = extract_frames_with_progress(store.get_video(),"Converter/frames")
         for filename in os.listdir("Converter/frames"):
             path_waiting_list.append(filename)
 
@@ -264,12 +228,8 @@ def convert():
             queue = manager.Queue(frame_count)
             lock = manager.Lock()
             args = [(dimension,lock,path_waiting_list2,queue,frame_count) for _ in path_waiting_list2]
-            args = [(dimension,lock,path_waiting_list2,queue,frame_count) for _ in path_waiting_list2]
             with Pool(processes=multiprocessing.cpu_count()) as pool:
                 pool.starmap(single_convert, args)
-
-            output_file.write("{\n")
-            first_entry = True
 
             output_file.write("{\n")
             first_entry = True
@@ -321,10 +281,7 @@ def view(ASCII_movie:dict,frames_interval:int):
     ready_event = threading.Event()
     music_path = "Converter/music.mp3"
     player = store.Player(music_path,ready_event)
-    music_path = "Converter/music.mp3"
-    player = store.Player(music_path,ready_event)
 
-    Music_thread = threading.Thread(target=player.play)
     Music_thread = threading.Thread(target=player.play)
     
     start_time = time.perf_counter()
@@ -342,10 +299,6 @@ def view(ASCII_movie:dict,frames_interval:int):
             expected_time = start_time + index * frames_interval
             
             # Clear the console and print the frame
-            if not skip_frame:
-                stdout.write(t.move_xy(0,0)+element[1])
-            else:
-                skip_frame = False
             if not skip_frame:
                 stdout.write(t.move_xy(0,0)+element[1])
             else:
@@ -385,7 +338,8 @@ def browse():
         print("Invalid number")
 
 if __name__ == "__main__":
-    setting_quality()
+    while not setting_quality():
+        pass
     inp = input("Browse / Convert : B/C : ").upper()
 
     if inp == "C":
